@@ -1,11 +1,8 @@
 import 'dart:async';
-
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'dart:convert' as convert;
-import 'package:http/http.dart' as http;
 
 void main() {
   runApp(const MyApp());
@@ -42,6 +39,7 @@ class _MyHomePageState extends State<MyHomePage> {
   List<double> chartdatas = [];
   double sliderforbegin = 10.0;
   double sliderforscale = 20.0;
+  RangeValues rangevalue = RangeValues(1.0, 20.0);
   bool refreshing = true;
   bool curved = false;
   bool dots = false;
@@ -88,24 +86,6 @@ class _MyHomePageState extends State<MyHomePage> {
               })
             });
     refreshing = !refreshing;
-  }
-
-  void slidering() {
-    chartdatas.clear();
-    int begin = sliderforbegin.toInt();
-    int scale = sliderforscale.toInt();
-    int end = begin + scale;
-    if (end > datas.length) {
-      end = datas.length;
-    }
-    for (int i = begin; i < end; i++) {
-      if (datas[i]["y"].runtimeType == int) {
-        chartdatas.add(datas[i]["y"].toDouble());
-      } else {
-        chartdatas.add(datas[i]["y"]);
-      }
-    }
-    setState(() {});
   }
 
   @override
@@ -158,57 +138,90 @@ class _MyHomePageState extends State<MyHomePage> {
                         child: const Text('Pontok'))),
               ])),
           Padding(
-              padding: const EdgeInsets.all(10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  Container(
-                      width: MediaQuery.of(context).size.width * 0.4,
-                      child: Slider(
-                          label: "Kezdőpont: $sliderforbegin",
-                          value: sliderforbegin,
-                          divisions: 149,
-                          min: 1.0,
-                          max: 150.0,
-                          onChanged: (value) {
-                            setState(() {
-                              sliderforbegin = value;
-                            });
-                            slidering();
-                          })),
-                  Container(
-                      width: MediaQuery.of(context).size.width * 0.4,
-                      child: Slider(
-                          label: "Hossz: $sliderforscale",
-                          value: sliderforscale,
-                          divisions: 149,
-                          min: 1.0,
-                          max: 150.0,
-                          onChanged: (value) {
-                            setState(() {
-                              sliderforscale = value;
-                              slidering();
-                            });
-                          })),
-                ],
-              )),
-          Container(
-              padding: const EdgeInsets.only(bottom: 30),
+              padding: EdgeInsets.all(30),
               child: SizedBox(
-                  height: MediaQuery.of(context).size.height * 0.7,
+                  width: MediaQuery.of(context).size.width * 0.6,
+                  height: MediaQuery.of(context).size.height * 0.3,
                   child: LineChart(LineChartData(lineBarsData: [
                     LineChartBarData(
                         isCurved: curved,
                         preventCurveOverShooting: true,
                         barWidth: 5,
+                        belowBarData: BarAreaData(show: false),
                         dotData: FlDotData(
                           show: dots,
                         ),
                         spots: [
-                          for (int i = 0; i < chartdatas.length; i++)
+                          for (int i = rangevalue.start.toInt();
+                              i < rangevalue.end.toInt();
+                              i++)
                             FlSpot(i.toDouble(), chartdatas[i]),
                         ])
-                  ]))))
+                  ])))),
+          Column(
+            children: [
+              SizedBox(
+                  width: MediaQuery.of(context).size.width * 0.4,
+                  height: 100,
+                  child: LineChart(LineChartData(
+                      titlesData: FlTitlesData(show: false),
+                      lineBarsData: [
+                        LineChartBarData(
+                            isCurved: curved,
+                            preventCurveOverShooting: true,
+                            barWidth: 5,
+                            colors: [
+                              for (int i = 0; i < chartdatas.length; i++)
+                                if (i < rangevalue.start || i > rangevalue.end)
+                                  Colors.black
+                                else
+                                  Colors.amber,
+                            ],
+                            belowBarData: BarAreaData(show: false),
+                            dotData: FlDotData(
+                              show: dots,
+                            ),
+                            spots: [
+                              for (int i = 0; i < chartdatas.length; i++)
+                                FlSpot(i.toDouble(), chartdatas[i]),
+                            ])
+                      ]))),
+              Container(
+                  width: MediaQuery.of(context).size.width * 0.4,
+                  child: RangeSlider(
+                      values: rangevalue,
+                      labels: RangeLabels(rangevalue.start.round().toString(),
+                          rangevalue.end.round().toString()),
+                      divisions: 99,
+                      min: 1.0,
+                      max: 100.0,
+                      onChanged: (value) {
+                        setState(() {
+                          rangevalue = value;
+                        });
+                        //   ranging();
+                      })),
+              Container(
+                  width: MediaQuery.of(context).size.width * 0.4,
+                  child: Slider(
+                      label: "Hossz: ${sliderforscale.round()}",
+                      value: sliderforscale,
+                      divisions: 99,
+                      min: 1.0,
+                      max: 100.0,
+                      onChanged: (value) {
+                        double distance = rangevalue.end - rangevalue.start;
+                        if (value + distance < 100) {
+                          setState(() {
+                            sliderforscale = value;
+                            rangevalue = RangeValues(value, value + distance);
+
+                            //     slidering();
+                          });
+                        }
+                      })),
+            ],
+          )
         ],
       ),
     );
