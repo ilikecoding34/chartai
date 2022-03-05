@@ -34,7 +34,6 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
   List<dynamic> datas = [0, 0];
   List<double> chartdatas = [];
   double sliderforbegin = 10.0;
@@ -64,12 +63,13 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   Future autorefresh() async {
+    int _counter = rangevalue.end.toInt();
     var time = const Duration(seconds: 1);
     Timer.periodic(
         time,
         (timer) => {
               if (refreshing) {timer.cancel()},
-              if (_counter == 99) {timer.cancel()},
+              if (_counter == chartdatas.length) {timer.cancel()},
               setState(() {
                 _counter++;
                 chartdatas.clear();
@@ -86,6 +86,14 @@ class _MyHomePageState extends State<MyHomePage> {
               })
             });
     refreshing = !refreshing;
+  }
+
+  coloring(int i) {
+    if (i < rangevalue.start || i > rangevalue.end) {
+      return Colors.black;
+    } else {
+      return Colors.amber;
+    }
   }
 
   @override
@@ -138,7 +146,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         child: const Text('Pontok'))),
               ])),
           Padding(
-              padding: EdgeInsets.all(30),
+              padding: const EdgeInsets.only(bottom: 30),
               child: SizedBox(
                   width: MediaQuery.of(context).size.width * 0.6,
                   height: MediaQuery.of(context).size.height * 0.3,
@@ -152,34 +160,36 @@ class _MyHomePageState extends State<MyHomePage> {
                           show: dots,
                         ),
                         spots: [
-                          for (int i = rangevalue.start.toInt();
-                              i < rangevalue.end.toInt();
+                          for (int i =
+                                  (refreshing ? rangevalue.start.toInt() : 0);
+                              i <
+                                  (refreshing
+                                      ? rangevalue.end.toInt()
+                                      : chartdatas.length);
                               i++)
-                            FlSpot(i.toDouble(), chartdatas[i]),
+                            chartdatas.isNotEmpty
+                                ? FlSpot(i.toDouble(), chartdatas[i])
+                                : FlSpot(0, 0),
                         ])
                   ])))),
           Column(
             children: [
               SizedBox(
                   width: MediaQuery.of(context).size.width * 0.4,
-                  height: 100,
+                  height: 70,
                   child: LineChart(LineChartData(
                       titlesData: FlTitlesData(show: false),
                       lineBarsData: [
                         LineChartBarData(
-                            isCurved: curved,
                             preventCurveOverShooting: true,
                             barWidth: 5,
                             colors: [
                               for (int i = 0; i < chartdatas.length; i++)
-                                if (i < rangevalue.start || i > rangevalue.end)
-                                  Colors.black
-                                else
-                                  Colors.amber,
+                                refreshing ? coloring(i) : Colors.blue
                             ],
                             belowBarData: BarAreaData(show: false),
                             dotData: FlDotData(
-                              show: dots,
+                              show: false,
                             ),
                             spots: [
                               for (int i = 0; i < chartdatas.length; i++)
@@ -192,31 +202,32 @@ class _MyHomePageState extends State<MyHomePage> {
                       values: rangevalue,
                       labels: RangeLabels(rangevalue.start.round().toString(),
                           rangevalue.end.round().toString()),
-                      divisions: 99,
+                      divisions: (chartdatas.length - 1),
                       min: 1.0,
-                      max: 100.0,
+                      max: chartdatas.isEmpty
+                          ? 100.0
+                          : chartdatas.length.toDouble(),
                       onChanged: (value) {
                         setState(() {
                           rangevalue = value;
                         });
-                        //   ranging();
                       })),
               Container(
                   width: MediaQuery.of(context).size.width * 0.4,
                   child: Slider(
                       label: "Hossz: ${sliderforscale.round()}",
                       value: sliderforscale,
-                      divisions: 99,
+                      divisions: (chartdatas.length - 1),
                       min: 1.0,
-                      max: 100.0,
+                      max: chartdatas.isEmpty
+                          ? 100.0
+                          : chartdatas.length.toDouble(),
                       onChanged: (value) {
                         double distance = rangevalue.end - rangevalue.start;
                         if (value + distance < 100) {
                           setState(() {
                             sliderforscale = value;
                             rangevalue = RangeValues(value, value + distance);
-
-                            //     slidering();
                           });
                         }
                       })),
