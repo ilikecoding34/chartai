@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -39,15 +40,20 @@ class _MyHomePageState extends State<MyHomePage> {
   double sliderforbegin = 10.0;
   double sliderforscale = 20.0;
   RangeValues rangevalue = RangeValues(1.0, 20.0);
+  TextEditingController inputfieldcontroll = TextEditingController(text: '1');
+  TextEditingController inputfieldcontroll2 =
+      TextEditingController(text: '10.0');
   bool refreshing = true;
   bool curved = false;
   bool dots = false;
+  String answer = '';
 
   Future getHttp() async {
     try {
       var response = await Dio().get('http://188.166.98.87:1880/GetChartData');
       chartdatas.clear();
-      datas = response.data["dataPoints"];
+      var gotdatas = response.data["dataPoints"];
+      datas = List.from(gotdatas.reversed);
       datas.forEach((element) {
         setState(() {
           if (element["y"].runtimeType == int) {
@@ -62,28 +68,33 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  Future postHttp() async {
+    String index = inputfieldcontroll.text;
+    double number = double.parse(inputfieldcontroll2.text);
+    //  Map<int, double> datas = {index: number};
+    var response;
+    Dio dio = Dio();
+    //  dio.options.contentType = Headers.formUrlEncodedContentType;
+    //dio.options.headers['content-Type'] = 'application/json';
+    dio.options.contentType = 'application/json';
+    dio.options.responseType = ResponseType.plain;
+    try {
+      response = await dio
+          .post('http://188.166.98.87:1880/AddPattern', data: {index: number});
+      answer = response.data.toString();
+    } on DioError catch (e) {
+      print(e.error);
+    }
+    setState(() {});
+  }
+
   Future autorefresh() async {
-    int _counter = rangevalue.end.toInt();
-    var time = const Duration(seconds: 1);
+    var time = const Duration(minutes: 1);
     Timer.periodic(
         time,
         (timer) => {
               if (refreshing) {timer.cancel()},
-              if (_counter == chartdatas.length) {timer.cancel()},
-              setState(() {
-                _counter++;
-                chartdatas.clear();
-                int kezdo = 0;
-                for (int i = kezdo; i < _counter; i++) {
-                  setState(() {
-                    if (datas[i]["y"].runtimeType == int) {
-                      chartdatas.add(datas[i]["y"].toDouble());
-                    } else {
-                      chartdatas.add(datas[i]["y"]);
-                    }
-                  });
-                }
-              })
+              getHttp()
             });
     refreshing = !refreshing;
   }
@@ -108,12 +119,12 @@ class _MyHomePageState extends State<MyHomePage> {
     return Scaffold(
       resizeToAvoidBottomInset: false,
       appBar: AppBar(
-        title: Text(widget.title),
+        title: Text(widget.title + " post answer: " + answer),
       ),
       body: ListView(
         children: <Widget>[
           Padding(
-              padding: const EdgeInsets.only(top: 20),
+              padding: const EdgeInsets.only(top: 20, bottom: 20),
               child: Wrap(children: [
                 Padding(
                     padding: const EdgeInsets.all(10),
@@ -122,7 +133,13 @@ class _MyHomePageState extends State<MyHomePage> {
                 Padding(
                     padding: const EdgeInsets.all(10),
                     child: ElevatedButton(
-                        onPressed: autorefresh,
+                        onPressed: postHttp, child: const Text('Adatküldés'))),
+                Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: ElevatedButton(
+                        onPressed: () => setState(() {
+                              autorefresh();
+                            }),
                         child: refreshing
                             ? const Text('Folyamatos \n frissítés')
                             : const Text("Leállítás"))),
@@ -144,6 +161,22 @@ class _MyHomePageState extends State<MyHomePage> {
                           });
                         },
                         child: const Text('Pontok'))),
+                Container(
+                    padding: const EdgeInsets.all(10),
+                    width: 80,
+                    child: TextField(
+                      selectionHeightStyle: BoxHeightStyle.tight,
+                      decoration: const InputDecoration(label: Text('index')),
+                      controller: inputfieldcontroll,
+                    )),
+                Container(
+                    padding: const EdgeInsets.all(10),
+                    width: 80,
+                    child: TextField(
+                      selectionHeightStyle: BoxHeightStyle.tight,
+                      decoration: const InputDecoration(label: Text('value')),
+                      controller: inputfieldcontroll2,
+                    )),
               ])),
           Padding(
               padding: const EdgeInsets.only(bottom: 30),
@@ -160,12 +193,8 @@ class _MyHomePageState extends State<MyHomePage> {
                           show: dots,
                         ),
                         spots: [
-                          for (int i =
-                                  (refreshing ? rangevalue.start.toInt() : 0);
-                              i <
-                                  (refreshing
-                                      ? rangevalue.end.toInt()
-                                      : chartdatas.length);
+                          for (int i = rangevalue.start.toInt();
+                              i < rangevalue.end.toInt();
                               i++)
                             chartdatas.isNotEmpty
                                 ? FlSpot(i.toDouble(), chartdatas[i])
@@ -185,7 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
                             barWidth: 5,
                             colors: [
                               for (int i = 0; i < chartdatas.length; i++)
-                                refreshing ? coloring(i) : Colors.blue
+                                coloring(i)
                             ],
                             belowBarData: BarAreaData(show: false),
                             dotData: FlDotData(
@@ -202,7 +231,8 @@ class _MyHomePageState extends State<MyHomePage> {
                       values: rangevalue,
                       labels: RangeLabels(rangevalue.start.round().toString(),
                           rangevalue.end.round().toString()),
-                      divisions: (chartdatas.length - 1),
+                      divisions:
+                          chartdatas.isNotEmpty ? (chartdatas.length - 1) : 1,
                       min: 1.0,
                       max: chartdatas.isEmpty
                           ? 100.0
@@ -217,7 +247,8 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: Slider(
                       label: "Hossz: ${sliderforscale.round()}",
                       value: sliderforscale,
-                      divisions: (chartdatas.length - 1),
+                      divisions:
+                          chartdatas.isNotEmpty ? (chartdatas.length - 1) : 1,
                       min: 1.0,
                       max: chartdatas.isEmpty
                           ? 100.0
