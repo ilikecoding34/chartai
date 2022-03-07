@@ -37,9 +37,10 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   List<dynamic> datas = [0, 0];
   List<double> chartdatas = [];
-  double sliderforbegin = 10.0;
-  double sliderforscale = 20.0;
-  RangeValues rangevalue = RangeValues(1.0, 20.0);
+  List<FlSpot> bigchart = [];
+  List<double> chartdate = [];
+  double sliderforscale = 0.0;
+  RangeValues rangevalue = const RangeValues(0.0, 100.0);
   TextEditingController inputfieldcontroll = TextEditingController(text: '1');
   TextEditingController inputfieldcontroll2 =
       TextEditingController(text: '10.0');
@@ -52,17 +53,22 @@ class _MyHomePageState extends State<MyHomePage> {
     try {
       var response = await Dio().get('http://188.166.98.87:1880/GetChartData');
       chartdatas.clear();
+      chartdate.clear();
       var gotdatas = response.data["dataPoints"];
       datas = List.from(gotdatas.reversed);
       datas.forEach((element) {
-        setState(() {
-          if (element["y"].runtimeType == int) {
-            chartdatas.add(element["y"].toDouble());
-          } else {
-            chartdatas.add(element["y"]);
-          }
-        });
+        if (element["y"].runtimeType == int) {
+          chartdatas.add(element["y"].toDouble());
+        } else {
+          chartdatas.add(element["y"]);
+        }
+        chartdate.add(element["T"].toDouble());
       });
+      bigchart.clear();
+      for (int i = rangevalue.start.toInt(); i < rangevalue.end.toInt(); i++) {
+        bigchart.add(FlSpot(chartdate[i], chartdatas[i]));
+      }
+      setState(() {});
     } catch (e) {
       print(e);
     }
@@ -76,15 +82,17 @@ class _MyHomePageState extends State<MyHomePage> {
     Dio dio = Dio();
     //  dio.options.contentType = Headers.formUrlEncodedContentType;
     //dio.options.headers['content-Type'] = 'application/json';
-    dio.options.contentType = 'application/json';
+    dio.options.contentType = Headers.textPlainContentType;
     dio.options.responseType = ResponseType.plain;
     try {
-      response = await dio
-          .post('http://188.166.98.87:1880/AddPattern', data: {index: number});
+      response = await dio.post('http://188.166.98.87:1880/AddPattern',
+          data: bigchart);
+
       answer = response.data.toString();
     } on DioError catch (e) {
       print(e.error);
     }
+
     setState(() {});
   }
 
@@ -105,6 +113,13 @@ class _MyHomePageState extends State<MyHomePage> {
     } else {
       return Colors.amber;
     }
+  }
+
+  bottomline(double input) {
+    String hour =
+        DateTime.fromMillisecondsSinceEpoch((input).toInt()).hour.toString();
+
+    return hour;
   }
 
   @override
@@ -183,28 +198,30 @@ class _MyHomePageState extends State<MyHomePage> {
               child: SizedBox(
                   width: MediaQuery.of(context).size.width * 0.6,
                   height: MediaQuery.of(context).size.height * 0.3,
-                  child: LineChart(LineChartData(lineBarsData: [
-                    LineChartBarData(
-                        isCurved: curved,
-                        preventCurveOverShooting: true,
-                        barWidth: 5,
-                        belowBarData: BarAreaData(show: false),
-                        dotData: FlDotData(
-                          show: dots,
-                        ),
-                        spots: [
-                          for (int i = rangevalue.start.toInt();
-                              i < rangevalue.end.toInt();
-                              i++)
-                            chartdatas.isNotEmpty
-                                ? FlSpot(i.toDouble(), chartdatas[i])
-                                : FlSpot(0, 0),
-                        ])
-                  ])))),
+                  child: LineChart(LineChartData(
+                      titlesData: FlTitlesData(
+                          topTitles: SideTitles(showTitles: false),
+                          bottomTitles: SideTitles(
+                            showTitles: true,
+                            getTitles: (value) {
+                              return bottomline(value);
+                            },
+                          )),
+                      lineBarsData: [
+                        LineChartBarData(
+                            isCurved: curved,
+                            preventCurveOverShooting: true,
+                            barWidth: 5,
+                            belowBarData: BarAreaData(show: false),
+                            dotData: FlDotData(
+                              show: dots,
+                            ),
+                            spots: bigchart)
+                      ])))),
           Column(
             children: [
               SizedBox(
-                  width: MediaQuery.of(context).size.width * 0.4,
+                  width: MediaQuery.of(context).size.width * 0.6,
                   height: 70,
                   child: LineChart(LineChartData(
                       titlesData: FlTitlesData(show: false),
@@ -222,43 +239,58 @@ class _MyHomePageState extends State<MyHomePage> {
                             ),
                             spots: [
                               for (int i = 0; i < chartdatas.length; i++)
-                                FlSpot(i.toDouble(), chartdatas[i]),
+                                FlSpot(chartdate[i], chartdatas[i]),
                             ])
                       ]))),
               Container(
-                  width: MediaQuery.of(context).size.width * 0.4,
+                  width: MediaQuery.of(context).size.width * 0.6,
                   child: RangeSlider(
                       values: rangevalue,
-                      labels: RangeLabels(rangevalue.start.round().toString(),
-                          rangevalue.end.round().toString()),
+                      labels: RangeLabels(
+                          rangevalue.start.round().toString() + "-tól",
+                          rangevalue.end.round().toString() + "-ig"),
                       divisions:
                           chartdatas.isNotEmpty ? (chartdatas.length - 1) : 1,
-                      min: 1.0,
+                      min: 0.0,
                       max: chartdatas.isEmpty
                           ? 100.0
                           : chartdatas.length.toDouble(),
                       onChanged: (value) {
-                        setState(() {
-                          rangevalue = value;
-                        });
+                        if (value.end - value.start > 99) {
+                          setState(() {
+                            bigchart.clear();
+                            rangevalue = value;
+                            for (int i = rangevalue.start.toInt();
+                                i < rangevalue.end.toInt();
+                                i++) {
+                              bigchart.add(FlSpot(chartdate[i], chartdatas[i]));
+                            }
+                          });
+                        }
                       })),
               Container(
-                  width: MediaQuery.of(context).size.width * 0.4,
+                  width: MediaQuery.of(context).size.width * 0.6,
                   child: Slider(
-                      label: "Hossz: ${sliderforscale.round()}",
+                      label: "Kezdőérték: ${sliderforscale.round()}",
                       value: sliderforscale,
                       divisions:
                           chartdatas.isNotEmpty ? (chartdatas.length - 1) : 1,
-                      min: 1.0,
+                      min: 0.0,
                       max: chartdatas.isEmpty
                           ? 100.0
                           : chartdatas.length.toDouble(),
                       onChanged: (value) {
                         double distance = rangevalue.end - rangevalue.start;
-                        if (value + distance < 100) {
+                        if (value + distance < chartdatas.length) {
                           setState(() {
+                            bigchart.clear();
                             sliderforscale = value;
                             rangevalue = RangeValues(value, value + distance);
+                            for (int i = rangevalue.start.toInt();
+                                i < rangevalue.end.toInt();
+                                i++) {
+                              bigchart.add(FlSpot(chartdate[i], chartdatas[i]));
+                            }
                           });
                         }
                       })),
